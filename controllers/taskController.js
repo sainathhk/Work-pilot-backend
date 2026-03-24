@@ -1303,15 +1303,12 @@ exports.handleRevision = async (req, res) => {
     const fileLinks = task.files && task.files.length > 0
       ? task.files.map((f, i) => `\n📎 Ref ${i + 1}: ${f.fileUrl}`).join("")
       : "\nNo attachments provided.";
-
-    // =========================
-    // 🔵 REQUEST REVISION
-    // =========================
+    
     if (action === 'Request') {
       task.status = 'Revision Requested';
       task.remarks = remarks || '';
 
-      // ✅ NEW: store structured deadline
+      
       if (proposedDeadline) {
         task.proposedDeadline = new Date(proposedDeadline);
       }
@@ -1349,12 +1346,10 @@ exports.handleRevision = async (req, res) => {
       }
     }
 
-    // =========================
-    // 🟢 APPROVE DEADLINE
-    // =========================
+    
     if (action === 'Approve') {
 
-      // ✅ FIX: use structured proposedDeadline
+      
       const finalDeadline = newDeadline || task.proposedDeadline || task.deadline;
 
       task.deadline = new Date(finalDeadline);
@@ -1391,16 +1386,13 @@ exports.handleRevision = async (req, res) => {
       }
     }
 
-    // =========================
-    // 🔁 REASSIGN TASK
-    // =========================
     else if (action === 'Reassign') {
 
       const oldDoerName = task.doerId?.name || "Previous Staff";
       task.doerId = newDoerId;
       task.status = 'Pending';
 
-      // ✅ OPTIONAL: update deadline if sent
+
       if (newDeadline) {
         task.deadline = new Date(newDeadline);
       }
