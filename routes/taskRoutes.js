@@ -1,0 +1,102 @@
+// server/routes/taskRoutes.js
+const express = require('express');
+const router = express.Router();
+const { 
+    createTenant, 
+    loginEmployee, 
+    addEmployee, 
+    updateSettings,
+    getCompanyOverview,
+    assignToCoordinator,
+    getEmployeeList,
+    deleteEmployee,
+    superAdminLogin,
+    getAllCompanies,
+    deleteCompany,
+    updateEmployeeMapping,
+    updateEmployee,
+    updateBranding, 
+} = require('../controllers/tenantController');
+const Tenant = require('../models/Tenant');
+const upload = require('../utils/s3Uploader'); 
+const taskController = require('../controllers/taskController');
+
+// --- AUTH & SUPERADMIN ROUTES ---
+router.post('/master-login', superAdminLogin);
+router.post('/create-company', upload.single('logo'), createTenant); 
+router.get('/all-companies', getAllCompanies);
+router.delete('/company/:id', deleteCompany);
+router.delete('/checklist/:id', taskController.deleteChecklistTask);
+router.get('/checklist-all/:tenantId', taskController.getAllChecklists);
+router.get('/doer/:doerId', taskController.getDoerTasks);
+router.get('/checklist/:doerId', taskController.getChecklistTasks);
+router.get('/assigner/:assignerId', taskController.getAssignerTasks);
+
+router.get('/review-analytics/:tenantId', taskController.getReviewAnalytics);
+// --- EMPLOYEE MANAGEMENT ROUTES ---
+router.get('/employees/:tenantId', getEmployeeList);
+router.post('/add-employee', addEmployee);
+router.put('/employees/:id', updateEmployee);
+router.delete('/employees/:id', deleteEmployee);
+router.get('/authorized-staff/:id', taskController.getAuthorizedStaff);
+// --- MAPPING, BRANDING & SETTINGS ---
+router.put('/update-mapping', updateEmployeeMapping);
+router.put('/update-settings', updateSettings);
+router.get('/coordinator/:coordinatorId', taskController.getCoordinatorTasks);
+router.post('/create-checklist', taskController.createChecklistTask);
+router.put('/respond', upload.single('evidence'), taskController.respondToTask);
+router.post('/checklist-done', upload.single('evidence'), taskController.completeChecklistTask);
+/**
+ * BRANDING UPDATE: Supports updating Company Name and Logo.
+ * Middleware: upload.single('logo') matches the key used in Settings.jsx FormData.
+ */
+router.put('/update-branding', upload.single('logo'), updateBranding);
+router.get('/employee-deep-dive/:employeeId', taskController.getEmployeeDeepDive);
+router.put('/update-weekly-target', taskController.updateEmployeeTarget);
+router.put('/assign-coordinator', assignToCoordinator);
+router.get('/company-overview/:tenantId', getCompanyOverview);
+// --- DELEGATION PROTOCOLS ---
+router.post('/create-task', upload.array('files'), taskController.createTask);
+
+router.delete('/:taskId', taskController.deleteTask);
+router.post('/handle-revision', taskController.handleRevision);
+router.post('/coordinator-force-done', taskController.coordinatorForceDone);
+// --- ANALYTICS & SCOREBOARDS ---
+router.get('/employee-score/:employeeId', taskController.getEmployeeScore);
+router.get('/global-performance/:tenantId', taskController.getGlobalPerformance);
+
+// --- TRACKING & SUPERVISION ---
+router.get('/coordinator-tasks/:coordinatorId', taskController.getCoordinatorTasks);
+router.put('/coordinator-force-done', taskController.coordinatorForceDone);
+router.post('/send-reminder', taskController.sendWhatsAppReminder);
+
+// --- CHECKLIST MAINTENANCE ---
+router.put('/checklist/:id', taskController.updateChecklistTask);
+// Fetch settings logic
+router.get('/settings/:tenantId', async (req, res) => {
+    try {
+        const tenant = await Tenant.findById(req.params.tenantId);
+        if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+        res.status(200).json(tenant);
+    } catch (err) {
+        res.status(500).json({ message: "Error fetching settings", error: err.message });
+    }
+});
+
+// --- LOGIN & VERIFICATION ---
+router.post('/login-employee', loginEmployee);
+router.get('/verify/:subdomain', async (req, res) => {
+    try {
+      const tenant = await Tenant.findOne({ subdomain: req.params.subdomain.toLowerCase() });
+      if (!tenant) return res.status(404).json({ message: "Tenant not found" });
+      res.json({ 
+        companyName: tenant.companyName, 
+        id: tenant._id,
+        whatsappActive: tenant.whatsappConfig ? tenant.whatsappConfig.isActive : false 
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+});
+
+module.exports = router;
