@@ -879,7 +879,10 @@ exports.getEmployeeDeepDive = async (req, res) => {
     });
 
     // 4. Process Checklist instances that fall within the range
-    checklists.forEach(t => {
+   
+   
+  
+  /*  checklists.forEach(t => {
       const rangeHistory = t.history?.filter(h =>
         new Date(h.timestamp) >= new Date(startDate) && new Date(h.timestamp) <= new Date(endDate)
       ) || [];
@@ -910,6 +913,77 @@ exports.getEmployeeDeepDive = async (req, res) => {
         });
       });
     });
+    
+    
+    
+    */
+
+
+    // 4. Process Checklist instances (INCLUDING PENDING)
+checklists.forEach(t => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  let pointer = new Date(t.nextDueDate);
+  pointer.setHours(0,0,0,0);
+
+  let loop = 0;
+
+  while (pointer <= end && loop < 50) {
+    loop++;
+
+    const instanceDate = new Date(pointer);
+
+    // Check if completed
+    const done = t.history?.find(h => {
+      const hDate = new Date(h.instanceDate || h.timestamp);
+      return h.action === 'Completed' &&
+             hDate.toDateString() === instanceDate.toDateString();
+    });
+
+    // LEAVE FILTERING
+    if (hasLeave) {
+      const leaveStart = new Date(employee.leaveStatus.startDate);
+      const leaveEnd = new Date(employee.leaveStatus.endDate);
+
+      const iDate = instanceDate.setHours(0,0,0,0);
+      const sDate = new Date(leaveStart).setHours(0,0,0,0);
+      const eDate = new Date(leaveEnd).setHours(23,59,59,999);
+
+      if (iDate >= sDate && iDate <= eDate) {
+        pointer.setDate(pointer.getDate() + 1);
+        continue;
+      }
+    }
+
+    let status = "PENDING";
+
+    if (done) {
+      const isLate = new Date(done.timestamp).toDateString() !== instanceDate.toDateString();
+      status = isLate ? "LATE" : "COMPLETED";
+    } else if (instanceDate < new Date()) {
+      status = "OVERDUE";
+    }
+
+    detailedRows.push({
+      id: t._id,
+      name: t.taskName,
+      type: 'Checklist',
+      deadline: instanceDate,
+      completedAt: done?.timestamp || null,
+      status,
+      remarks: done?.remarks || "",
+      isChecklistInstance: true   // ⭐ IMPORTANT FLAG
+    });
+
+    // Move pointer
+    if (t.frequency === 'Daily') pointer.setDate(pointer.getDate() + 1);
+    else if (t.frequency === 'Weekly') pointer.setDate(pointer.getDate() + 7);
+    else break;
+  }
+});
+
+
 
     res.status(200).json(detailedRows);
   } catch (error) {
