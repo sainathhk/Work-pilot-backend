@@ -523,7 +523,7 @@ exports.updateChecklistTask = async (req, res) => {
      * Added 'description' to the destructuring to ensure it is captured 
      * from the high-density grid's edit mode.
      */
-    const { taskName, description, doerId, status, frequency, frequencyConfig } = req.body;
+    const { taskName, description, doerId, status, frequency, frequencyConfig , createdAt } = req.body;
 
     /**
      * 2. SMART RE-CALCULATION GUARD
@@ -554,8 +554,17 @@ exports.updateChecklistTask = async (req, res) => {
 
       // Use the scheduler's calculateNextDate to find the very next valid mission
       // Anchor from today to ensure the new schedule starts fresh
-      const anchor = new Date();
-      anchor.setHours(0, 0, 0, 0);
+      
+      
+      
+      //const anchor = new Date();
+
+
+      const anchor = createdAt ? new Date(createdAt) : new Date(existingTask.createdAt);
+anchor.setHours(0, 0, 0, 0);  
+
+
+      //anchor.setHours(0, 0, 0, 0);
 
       finalNextDueDate = calculateNextDate(
         frequency || existingTask.frequency,
@@ -580,7 +589,8 @@ exports.updateChecklistTask = async (req, res) => {
           status,
           frequency,
           frequencyConfig,
-          nextDueDate: finalNextDueDate
+          nextDueDate: finalNextDueDate ,
+          createdAt: createdAt || existingTask.createdAt,
         }
       },
       { new: true }
