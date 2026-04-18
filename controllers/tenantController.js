@@ -402,7 +402,8 @@ exports.loginEmployee = async (req, res) => {
         id: employee._id,
         name: employee.name,
         roles: employee.roles, // Full array of roles
-        company: tenant.companyName
+        company: tenant.companyName,
+        email : email
       },
       tenantId: tenant._id
     });

@@ -49,4 +49,14 @@ router.get('/instances/:tenantId', fmsController.getTenantInstances);
  */
 router.get('/sync/:templateId', fmsController.syncFmsOrders);
 
+
+
+router.get('/my-missions/:email', fmsController.getMyMissions);
+
+
+router.get('/history/:instanceId', fmsController.getInstanceHistory);
+
+
+router.get('/history/flow/:templateId', fmsController.getFlowHistory);
+
 module.exports = router;
