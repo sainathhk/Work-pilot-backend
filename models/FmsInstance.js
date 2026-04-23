@@ -78,6 +78,13 @@ const FmsInstanceSchema = new mongoose.Schema({
   }, 
 
   sheetRowId: String, // ✅ ADD THIS4
+
+
+  sheetDataId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'FmsSheetData'
+},
+
   
   // Deep copy of nodes from the Template to track this specific order's journey
   steps: [StepTrackingSchema],

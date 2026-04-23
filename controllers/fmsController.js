@@ -13,6 +13,12 @@ const { addWorkingTime } = require('../utils/timeCalculator');
 
 
 
+const FmsSheetData = require('../models/FmsSheetData');
+
+
+
+
+
 /**
  * PHASE 1: CREATE NEW FLOW BLUEPRINT
  * Saves the mapping of Google Sheet columns to factory tasks.
@@ -56,7 +62,12 @@ exports.getTenantTemplates = async (req, res) => {
 exports.getTenantInstances = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const instances = await FmsInstance.find({ tenantId }).sort({ createdAt: -1 });
+    //const instances = await FmsInstance.find({ tenantId }).sort({ createdAt: -1 });
+    
+    const instances = await FmsInstance.find({ tenantId })
+  .populate('sheetDataId')   // 🔥 IMPORTANT
+  .sort({ createdAt: -1 });
+    
     res.status(200).json(instances);
   } catch (error) {
     res.status(500).json({ message: "Instance Fetch Failed", error: error.message });
@@ -75,6 +86,15 @@ exports.initializeFlow = async (req, res) => {
 
     // 1. Duplicate Check: Ensure we don't start the same order twice
     const existing = await FmsInstance.findOne({ orderIdentifier, tenantId });
+    
+   /* const existing = await FmsInstance.findOne({
+  orderIdentifier: orderId,
+  tenantId: template.tenantId,
+  sheetDataId: sheetDataDoc._id
+});*/
+    
+    
+    
     if (existing) return res.status(200).json({ message: "Order already active", instance: existing });
 
     // 2. Calculate deadline for Step 1 based on its offset (e.g., +2 hours from now)
@@ -427,12 +447,59 @@ if (!rows[0][idKey]) {
         if (!orderId || orderId.length < 3) continue;
 
 
+        const lineItemId = row["Line Item ID"]?.toString().trim() || "NA";
+
+// ✅ STORE RAW SHEET DATA
+let sheetDataDoc;
+
+try {
+  sheetDataDoc = await FmsSheetData.findOneAndUpdate(
+    {
+      templateId: template._id,
+      orderIdentifier: orderId,
+      lineItemId: lineItemId
+    },
+    {
+      templateId: template._id,
+      tenantId: template.tenantId,
+      orderIdentifier: orderId,
+      lineItemId: lineItemId,
+      sheetRowId: i + 2,
+      rawData: row   // 🔥 FULL DATA STORED
+    },
+    { upsert: true, new: true }
+  );
+} catch (err) {
+  console.error("SheetData Save Error:", err.message);
+  continue;
+}
+
+
+
+
+
+
         /*const orderId = row[idKey]?.toString();
         if (!orderId) continue;*/
 
         // 1. Check if Order is already being tracked in FmsInstance
         const existing = await FmsInstance.findOne({ orderIdentifier: orderId, tenantId: template.tenantId });
-        if (existing) continue;
+        
+        
+        //if (existing) continue;
+
+
+
+        if (existing) {
+  // 🔥 UPDATE missing sheetDataId
+  if (!existing.sheetDataId && sheetDataDoc) {
+    existing.sheetDataId = sheetDataDoc._id;
+    await existing.save();
+  }
+  continue;
+}
+
+
 
         // 2. Initialize Flow Clock for new Orders found in sheet
         const firstNode = template.nodes.find(n => n.stepIndex === 0) || template.nodes[0];
@@ -458,6 +525,10 @@ if (!rows[0][idKey]) {
           templateId: template._id,
           orderIdentifier: orderId,
           sheetRowId: i + 2, // assuming row 1 = header
+
+          sheetDataId: sheetDataDoc._id,
+
+
           steps: template.nodes.map((node) => ({
             nodeName: node.nodeName,
             stepIndex: node.stepIndex,
@@ -574,7 +645,10 @@ exports.getMyMissions = async (req, res) => {
 
     const { email } = req.params;
 
-    const instances = await FmsInstance.find();
+    //const instances = await FmsInstance.find();
+
+    const instances = await FmsInstance.find().populate('sheetDataId');
+
 
     const missions = [];
 
@@ -607,7 +681,10 @@ exports.getMyMissions = async (req, res) => {
           
           
           // 🔥 ADD
-           previousRemarks: prevStep?.remarks || null
+           previousRemarks: prevStep?.remarks || null,
+
+           // ✅ ADD THIS
+  sheetData: instance.sheetDataId?.rawData || {}
           });
         }
       });
